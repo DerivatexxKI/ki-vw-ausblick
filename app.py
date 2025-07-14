@@ -1,75 +1,89 @@
-
 import streamlit as st
-import pandas as pd
-import pdfplumber
-from docx import Document
-from io import BytesIO
 import os
 from openai import OpenAI
+from docx import Document
+from io import BytesIO
+import pandas as pd
+import pdfplumber
+
+# Prüfe, ob der API-Key geladen wurde
+api_key = os.getenv("OPENAI_API_KEY")
+st.write("✅ API-Key gefunden:", api_key is not None)
+
+if not api_key:
+    st.error("❌ Kein API-Key gefunden! Bitte überprüfe deine GitHub Secrets.")
+    st.stop()
 
 # OpenAI initialisieren
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+client = OpenAI(api_key=api_key)
 
-st.set_page_config(page_title="Volkswirtschaftlicher Ausblick – KI-Agent", page_icon="📊")
-st.title("📊 KI-Agent für Volkswirtschaftlichen Ausblick")
+# Streamlit UI konfigurieren
+st.set_page_config(page_title="📊 Volkswirtschaftlicher Ausblick Generator", page_icon="📈")
+st.title("📈 KI-gestützter Volkswirtschaftlicher Ausblick")
 
-# Datei-Upload
-pdfs = st.file_uploader("📎 Lade Research-/Marktberichte als PDF hoch", type="pdf", accept_multiple_files=True)
-excel = st.file_uploader("📈 Lade Excel-Datei mit Zinsdaten o. Ä.", type=["xls", "xlsx"])
+# Dateiuploads
+uploaded_excels = st.file_uploader("📥 Excel-Dateien mit Zinsdaten hochladen", type=["xlsx", "xls", "csv"], accept_multiple_files=True)
+uploaded_pdfs = st.file_uploader("📥 PDF-Dateien mit Research- oder Marktberichten hochladen", type="pdf", accept_multiple_files=True)
 
-# PDF-Inhalte extrahieren
-def extract_text_from_pdfs(files):
-    full_text = ""
-    for pdf in files:
-        with pdfplumber.open(pdf) as pdf_file:
-            for page in pdf_file.pages:
-                full_text += page.extract_text() + "\n"
-    return full_text
+# Funktion zum PDF-Text extrahieren
+def extract_text_from_pdfs(pdfs):
+    text = ""
+    for pdf in pdfs:
+        with pdfplumber.open(pdf) as pdf_reader:
+            for page in pdf_reader.pages:
+                text += page.extract_text() or ""
+    return text
 
-# Excel-Inhalte extrahieren
-def extract_excel_summary(file):
-    try:
-        df = pd.read_excel(file)
-        return df.head().to_markdown()
-    except Exception as e:
-        return "Fehler beim Einlesen der Excel-Datei: " + str(e)
+# Excel-Zusammenfassung
+def summarize_excels(files):
+    summaries = []
+    for f in files:
+        try:
+            df = pd.read_excel(f)
+        except:
+            df = pd.read_csv(f)
+        summaries.append(f"Datei: {f.name}\nSpalten: {', '.join(df.columns)}\nVorschau:\n{df.head(3).to_string(index=False)}")
+    return "\n\n".join(summaries)
 
-# Word-Dokument erstellen
-def generate_word_report(prompt, title="Volkswirtschaftlicher Ausblick"):
-    response = client.chat.completions.create(
-        model="gpt-4",
-        messages=[{"role": "user", "content": prompt}]
-    )
-    doc = Document()
-    doc.add_heading(title, 0)
-    doc.add_paragraph(response.choices[0].message.content)
-    buffer = BytesIO()
-    doc.save(buffer)
-    buffer.seek(0)
-    return buffer
-
-if st.button("🧠 Analyse starten und Bericht generieren"):
+# Knopf zur Erstellung des Berichts
+if st.button("🧠 Bericht erstellen"):
     with st.spinner("Analysiere Inhalte und erstelle Bericht..."):
-        pdf_text = extract_text_from_pdfs(pdfs) if pdfs else ""
-        excel_text = extract_excel_summary(excel) if excel else ""
 
-        gesamt_prompt = f"""Du bist ein erfahrener Volkswirt in einer Bank. Erstelle auf Basis folgender PDF-Auszüge und Excel-Daten einen professionellen volkswirtschaftlichen Ausblick für eine Bank:
----
-PDF-Inhalte:
-{pdf_text}
----
-Excel-Daten (Vorschau):
-{excel_text}
----
-Gliedere den Text bitte wie folgt:
-1. Aktuelle Wirtschaftslage
-2. Zinsumfeld & Geldpolitik
-3. Inflationsausblick
-4. Risiken & geopolitische Spannungen
-5. Mittelfristige Prognosen (inkl. Zinsen)
+        pdf_text = extract_text_from_pdfs(uploaded_pdfs) if uploaded_pdfs else ""
+        excel_summary = summarize_excels(uploaded_excels) if uploaded_excels else ""
 
-Sprache: sachlich, professionell, deutsch.""" 
+        prompt = f"""
+        Du bist ein Experte für Volkswirtschaft, Zentralbankpolitik und Zinsprognosen.
+        Erstelle einen professionellen, strukturierten volkswirtschaftlichen Ausblick für eine deutsche Regionalbank.
+        Verwende diese Inhalte aus PDFs:
+        {pdf_text[:6000]}
+        
+        Und diese Excel-Daten:
+        {excel_summary[:3000]}
 
-        docx_file = generate_word_report(gesamt_prompt)
-        st.success("Bericht erstellt!")
-        st.download_button("📥 Word-Dokument herunterladen", data=docx_file, file_name="Volkswirtschaftlicher_Ausblick.docx")
+        Struktur des Ausblicks:
+        1. Aktuelle wirtschaftliche Lage
+        2. Zinsumfeld (EZB, FED, Markt)
+        3. Inflationsausblick
+        4. Risiken & Unsicherheiten
+        5. Mittelfristiger Ausblick und Zinsprojektion
+        """
+
+        response = client.chat.completions.create(
+            model="gpt-4",
+            messages=[{"role": "user", "content": prompt}]
+        )
+
+        report_text = response.choices[0].message.content
+
+        # Word-Dokument generieren
+        doc = Document()
+        doc.add_heading("Volkswirtschaftlicher Ausblick", 0)
+        for line in report_text.split("\n"):
+            doc.add_paragraph(line)
+        buffer = BytesIO()
+        doc.save(buffer)
+        buffer.seek(0)
+
+        st.success("✅ Bericht erstellt!")
+        st.download_button("📄 Bericht als Word-Datei herunterladen", buffer, file_name="Volkswirtschaftlicher_Ausblick.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
