@@ -6,15 +6,15 @@ from io import BytesIO
 import pandas as pd
 import pdfplumber
 
-# OpenAI API-Key prüfen und ggf. Fallback setzen
+# OpenAI API-Key prüfen
 api_key = os.getenv("OPENAI_API_KEY")
 
 # Debug-Anzeige
-if not api_key:
-    st.warning("⚠️ Kein API-Key über Umgebungsvariable gefunden – versuche Fallback-Key (nur zu Testzwecken)")
-    api_key = "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"  # ⛔ DEIN API-KEY HIER EINTRAGEN (nur temporär)
-
 st.write("✅ API-Key geladen:", api_key[:8] + "..." if api_key else "❌ NICHT gesetzt")
+
+if not api_key:
+    st.error("❌ Kein API-Key gefunden. Bitte in GitHub unter Settings > Secrets > Actions den Key als OPENAI_API_KEY eintragen.")
+    st.stop()
 
 # OpenAI initialisieren
 client = OpenAI(api_key=api_key)
