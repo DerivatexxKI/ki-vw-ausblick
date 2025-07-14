@@ -1,5 +1,5 @@
-openai>=1.3.9           # Für GPT-API
-streamlit>=1.25.0       # Für die App-Oberfläche
-pandas                  # Für Excel/CSV-Auswertung
-python-docx             # Für Word-Export
-pdfplumber              # Für PDF-Textauszug
+openai>=1.3.9
+streamlit>=1.25.0
+pandas
+python-docx
+pdfplumber
