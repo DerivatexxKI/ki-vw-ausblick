@@ -6,13 +6,15 @@ from io import BytesIO
 import pandas as pd
 import pdfplumber
 
-# Prüfe, ob der API-Key geladen wurde
+# OpenAI API-Key prüfen und ggf. Fallback setzen
 api_key = os.getenv("OPENAI_API_KEY")
-st.write("✅ API-Key gefunden:", api_key is not None)
 
+# Debug-Anzeige
 if not api_key:
-    st.error("❌ Kein API-Key gefunden! Bitte überprüfe deine GitHub Secrets.")
-    st.stop()
+    st.warning("⚠️ Kein API-Key über Umgebungsvariable gefunden – versuche Fallback-Key (nur zu Testzwecken)")
+    api_key = "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"  # ⛔ DEIN API-KEY HIER EINTRAGEN (nur temporär)
+
+st.write("✅ API-Key geladen:", api_key[:8] + "..." if api_key else "❌ NICHT gesetzt")
 
 # OpenAI initialisieren
 client = OpenAI(api_key=api_key)
@@ -86,4 +88,9 @@ if st.button("🧠 Bericht erstellen"):
         buffer.seek(0)
 
         st.success("✅ Bericht erstellt!")
-        st.download_button("📄 Bericht als Word-Datei herunterladen", buffer, file_name="Volkswirtschaftlicher_Ausblick.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+        st.download_button(
+            "📄 Bericht als Word-Datei herunterladen",
+            buffer,
+            file_name="Volkswirtschaftlicher_Ausblick.docx",
+            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        )
